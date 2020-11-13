@@ -49,10 +49,10 @@ class ProjectTests2(TestCase):
             reverse('group_posts', args=(self.group.slug,)),
         ]
         for url in urls:
-            if url == reverse('index'):
-                cache.clear() 
-            response = self.authorized_client.get(url)
             with self.subTest():
+                if url == reverse('index'):
+                    cache.clear() 
+                response = self.authorized_client.get(url)
                 self.assertContains( 
                     response,  
                     '<img',  
@@ -70,9 +70,9 @@ class ProjectTests2(TestCase):
                     'image': img,
                 }
             )
-        message = 'Загрузите правильное изображение. ' \
-                  'Файл, который вы загрузили, ' \
-                  'поврежден или не является изображением.'
+        message = ('Загрузите правильное изображение. ' 
+                  'Файл, который вы загрузили, ' 
+                  'поврежден или не является изображением.')
         self.assertFormError(
             response, 
             'form', 
