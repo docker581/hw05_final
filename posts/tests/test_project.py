@@ -2,11 +2,14 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.core.cache import cache
 from django.core.cache.utils import make_template_fragment_key
+from django.core.files import File
 
 from posts.models import User, Post, Group, Follow, Comment
 
+import mock
 
-class ProjectTests(TestCase):
+
+class ProjectTests2(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='johnny')
         self.authorized_client = Client()        
@@ -29,19 +32,17 @@ class ProjectTests(TestCase):
         response = self.unauthorized_client.get('some_page')
         self.assertEqual(response.status_code, 404)  
 
-    def test_image_check(self):      
-        with open('media/posts/test3.png','rb') as img:
-            self.authorized_client.post(
-                reverse('new_post'), 
-                {
-                    'author': self.user, 
-                    'text': 'text with image',
-                    'group': self.group.id, 
-                    'image': img,
-                }
-            )
+    def test_image_check(self): 
+        image = mock.MagicMock(spec=File)
+        image.name = 'test.jpg' 
+        Post.objects.create(
+            text='some text', 
+            author=self.user, 
+            group=self.group,
+            image=image, 
+        )
         new_post_id = Post.objects.count()    
-        urls=[
+        urls = [
             reverse('index'),
             reverse('profile', args=(self.user.username,)), 
             reverse('post', args=(self.user.username, new_post_id)),
@@ -51,15 +52,16 @@ class ProjectTests(TestCase):
             if url == reverse('index'):
                 cache.clear() 
             response = self.authorized_client.get(url)
-            self.assertContains( 
-                response,  
-                '<img',  
-                status_code=200, 
-            )
+            with self.subTest():
+                self.assertContains( 
+                    response,  
+                    '<img',  
+                    status_code=200, 
+                )
 
     def test_not_image_check(self):      
         with open('requirements.txt','rb') as img:
-            self.authorized_client.post(
+            response = self.authorized_client.post(
                 reverse('new_post'), 
                 {
                     'author': self.user, 
@@ -68,11 +70,15 @@ class ProjectTests(TestCase):
                     'image': img,
                 }
             )
-        new_post_id = Post.objects.count()
-        response = self.authorized_client.get(
-            reverse('post', args=(self.user.username, new_post_id))
+        message = 'Загрузите правильное изображение. ' \
+                  'Файл, который вы загрузили, ' \
+                  'поврежден или не является изображением.'
+        self.assertFormError(
+            response, 
+            'form', 
+            'image', 
+            message,
         )
-        self.assertNotEqual(response.status_code, 200)
 
     def test_cache_check(self):
         key = make_template_fragment_key('index_page')
@@ -91,7 +97,7 @@ class ProjectTests(TestCase):
         newer_response = self.authorized_client.get(reverse('index'))
         self.assertNotEqual(old_response.content, newer_response.content)
 
-    def test_authorized_client_following(self):
+    def test_followers_count(self):
         followers = Follow.objects.count()
         self.authorized_client.get(
             reverse('profile_follow', args=(self.new_user.username,))
@@ -102,20 +108,26 @@ class ProjectTests(TestCase):
         )
         self.assertEqual(Follow.objects.count(), followers)    
 
-    def test_following_new_post(self):
+    def test_subscribe(self):
         old_response = self.authorized_client.get(reverse('follow_index'))
         self.authorized_client.get(
             reverse('profile_follow', args=(self.new_user.username,))
         )
         new_response = self.authorized_client.get(reverse('follow_index'))
         self.assertNotEqual(old_response.content, new_response.content)
+
+    def test_unsubscribe(self):
+        old_response = self.authorized_client.get(reverse('follow_index'))
+        self.authorized_client.get(
+            reverse('profile_follow', args=(self.new_user.username,))
+        )    
         self.authorized_client.get(
             reverse('profile_unfollow', args=(self.new_user.username,))
         )
-        newer_response = self.authorized_client.get(reverse('follow_index'))
-        self.assertEqual(old_response.content, newer_response.content)
+        new_response = self.authorized_client.get(reverse('follow_index'))
+        self.assertEqual(old_response.content, new_response.content)
 
-    def test_post_comment(self):
+    def test_authorized_client_comment(self):
         comments = Comment.objects.count()
         self.authorized_client.post(
             reverse(
@@ -129,6 +141,9 @@ class ProjectTests(TestCase):
             }
         )
         self.assertEqual(Comment.objects.count(), comments + 1)
+
+    def test_unauthorized_client_comment(self):
+        comments = Comment.objects.count()    
         self.unauthorized_client.post(
             reverse(
                 'add_comment', 
@@ -140,4 +155,4 @@ class ProjectTests(TestCase):
                 'text': 'text from unauthorized client',
             }
         )
-        self.assertNotEqual(Comment.objects.count(), comments + 2)
+        self.assertNotEqual(Comment.objects.count(), comments + 1)

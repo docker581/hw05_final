@@ -11,7 +11,7 @@ def page_not_found(request, exception):
         request, 
         "misc/404.html", 
         {"path": request.path}, 
-        status=404
+        status=404,
     )
 
 
@@ -29,7 +29,7 @@ def index(request):
         'index.html', 
         {
             'page': page, 
-            'paginator': paginator
+            'paginator': paginator,
         }
     )
 
@@ -46,7 +46,7 @@ def group_posts(request, slug):
         {
             'group':group, 
             'page': page, 
-            'paginator': paginator
+            'paginator': paginator,
         }
     )
 
@@ -79,7 +79,7 @@ def profile(request, username):
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
     page = paginator.get_page(page_number)
-    following = author.following.filter(user=request.user.id)
+    following = author.following.filter(user=request.user.id).exists()
     author_followers = author.following.count()
     author_followings = author.follower.count()      
     return render(
@@ -103,7 +103,7 @@ def post_view(request, username, post_id):
     form = CommentForm()
     comments = post.comments.all()
     author = User.objects.get(username=username)
-    following = author.following.filter(user=request.user.id)
+    following = author.following.filter(user=request.user.id).exists()
     author_followers = author.following.count()
     author_followings = author.follower.count()      
     return render(

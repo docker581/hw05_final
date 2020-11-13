@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.db.models.query_utils import Q
 
 User = get_user_model()
 
@@ -99,7 +100,10 @@ class Follow(models.Model):
     )
 
     class Meta:
-        unique_together = ['author', 'user']
+        models.UniqueConstraint(
+            fields=['author', 'user'],
+            name='author_user',
+        )
         verbose_name_plural='Подписки'
     
     def __str__(self):
